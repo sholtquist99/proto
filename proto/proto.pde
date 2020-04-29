@@ -102,7 +102,7 @@ int[][] trimImage(BufferedImage img) {
   
     for(int j = left; j <= right; j++) {
     
-      int pixelidx = (i * imgWidth) + j + 1;
+      int pixelidx = (i * imgWidth) + j + (hasAlpha ? 1 : 0);
       
       int argb = 0;
       argb += ((int) pixels[pixelidx] & 0xff); // blue
