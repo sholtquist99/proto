@@ -14,13 +14,68 @@ void setup() {
   background(0);
   colorMode(RGB);
   lights();
-
+  
   proj_dir = Paths.get(sketchPath(""));
   input_dir = Paths.get(sketchPath("input"));
   writing_systems = Paths.get(sketchPath("input\\writing_systems"));
   
-  Path english_chars = Paths.get(sketchPath("input\\writing_systems\\Latin\\characters\\English"));
+}
+
+void draw() {
+  
+  showMenu();
+  
+  int choice = key - '0';
+  
+  switch(choice) {
+  
+    case 1:
+      splitSourceFiles();
+      break;
+    case 2:
+      generate3D();
+      break;
+    case 3:
+      generate4D();
+      break;
+  
+  }
+
+}
+
+void showMenu() {
+
+  background(0);
+  textSize(24);
+  
+  text("1: Split source files into characters", 10, 30);
+  text("2: Generate 3D sculptures", 10, 60);
+  text("3: Generate 4D sculpture", 10, 90);
+
+}
+
+void splitSourceFiles() {
+
+  key = '0';//reset input to prevent sticking
+  
+  try {
+    DirectoryStream<Path> stream = Files.newDirectoryStream(writing_systems);
+    for (Path file: stream) {
+      println("Processing the " + file.toFile().getName() + " writing system");
+      splitSystem(file);
+    }
+  } catch (Exception e) {
+    println("Oh no! " + e);
+  }
+
+}
+
+void generate3D() {
+
+  key = '0';//reset input to prevent sticking
+  
   ArrayList<int[][]> characterData = new ArrayList();
+  Path english_chars = Paths.get(sketchPath("input\\writing_systems\\Latin\\characters\\English"));
   
   try {
     DirectoryStream<Path> stream = Files.newDirectoryStream(english_chars);
@@ -34,12 +89,38 @@ void setup() {
   } catch (Exception e) {
     println("Oh no! " + e);
   }
-  
+
 }
 
-void draw() {
+void generate4D() {
+
+  key = '0';//reset input to prevent sticking
+
+}
+
+//process the source folder for a given writing system
+void splitSystem(Path path) {
   
-  background(0);
+  Path source = Paths.get(path.toString() + "\\source");
+  
+  try {
+    DirectoryStream<Path> stream = Files.newDirectoryStream(source);
+    for (Path file: stream) {
+        if(file.toFile().isDirectory()) {//writing system contains subsets for different languages/language groups
+        
+          File directory = file.toFile();
+          println("\tProcessing subset " + directory.getName());
+          
+        } else {//writing system data is monolithic
+        
+          File resource = file.toFile();
+          println("\tProcessing resource " + resource.getName());
+          
+        }
+    }
+  } catch (Exception e) {
+    println("Oh no! " + e);
+  }
 
 }
 
