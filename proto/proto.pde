@@ -1,5 +1,6 @@
 import java.util.*;
 import java.io.*;
+import java.io.InputStream;
 import java.nio.file.*;
 import javax.imageio.ImageIO;
 import java.awt.image.*;
@@ -7,6 +8,7 @@ import java.awt.image.*;
 final int scaledImgDim = 50;//dimensions to scale character data to before generating 3D models
 
 int screenState = 0;//which screen is to be displayed
+String usermsg = "";
 
 Path proj_dir;//paths to useful project directories
 Path input_dir;
@@ -22,6 +24,8 @@ void setup() {
   proj_dir = Paths.get(sketchPath(""));
   input_dir = Paths.get(sketchPath("input"));
   writing_systems = Paths.get(sketchPath("input\\writing_systems"));
+  
+  splitSystem(Paths.get(sketchPath("input\\writing_systems\\Latin")));
   
 }
 
@@ -59,11 +63,11 @@ void draw() {
   
     list3D();
   
-  } else if(screenState == 2) {//view 4D
+  } else if(screenState == 2) {//view 3D
   
     view3D();
     
-  } else if(screenState == 3) {
+  } else if(screenState == 3) {//view 4D
   
     view4D();
     
@@ -81,6 +85,7 @@ void showMenu() {
   text("3: View 3D sculpture", 10, 90);
   text("4: Generate 4D sculpture", 10, 120);
   text("5: View 4D sculpture", 10, 150);
+  text(usermsg, 10, 180);
 
 }
 
@@ -94,8 +99,9 @@ void splitSourceFiles() {
       println("Processing the " + file.toFile().getName() + " writing system");
       splitSystem(file);
     }
+    usermsg = "Files split successfully!";
   } catch (Exception e) {
-    println("Oh no! " + e);
+    usermsg = "Oh no! " + e;
   }
 
 }
@@ -150,12 +156,42 @@ void splitSystem(Path path) {
         if(file.toFile().isDirectory()) {//writing system contains subsets for different languages/language groups
         
           File directory = file.toFile();
-          println("\tProcessing subset " + directory.getName());
+          String dirName = directory.getName();
+          println("----Processing " + dirName + " subset");
+          
+          Path subsetSource = Paths.get(source.toString() + "\\" + dirName);
+          DirectoryStream<Path> subsetStream = Files.newDirectoryStream(subsetSource);
+          
+          File config = new File(subsetSource.toString() + "\\config.txt");
+          
+          for(Path subsetFile: subsetStream) {
+            
+            File resource = subsetFile.toFile();
+            String fileName = resource.getName();
+            
+            if(fileName.equals("config.txt")) {//don't split the config file!
+              continue;
+            }
+            
+            println("\tProcessing resource " + fileName);
+            
+            Path outputDir = Paths.get(path.toString() + "\\characters\\" + dirName);
+            splitFile(resource, config, outputDir);
+            
+          }
+          
+          println("----End " + dirName + " subset");
           
         } else {//writing system data is monolithic
         
           File resource = file.toFile();
-          println("\tProcessing resource " + resource.getName());
+          String fileName = resource.getName();
+          
+          if(fileName.equals("config.txt")) {//don't split the config file!
+            continue;
+          }
+          
+          println("\tProcessing resource " + fileName);
           
         }
     }
@@ -163,6 +199,91 @@ void splitSystem(Path path) {
     println("Oh no! " + e);
   }
 
+}
+
+void splitFile(File resource, File config, Path outputDir) {//handle individual file splitting
+
+  String fileName = resource.getName();
+  
+  try {
+    
+    BufferedImage img = ImageIO.read(resource);
+    BufferedReader configReader = new BufferedReader(new FileReader(config));
+    
+    String line = "";
+    
+    while(configReader.ready() && !line.equals(fileName)) {//read until we reach the file at hand
+    
+      line = configReader.readLine();
+    
+    }
+    
+    if(line.equals(fileName)) {//config file contains info for the resource
+    
+      line = configReader.readLine();//num blocks
+      int numBlocks = Integer.parseInt(line);
+      
+      for(int i = 0; i < numBlocks; i++) {//iterate over the files
+      
+        line = configReader.readLine();//config line for this block
+        String[] explode = line.split(" ");
+        
+        if(explode.length < 8) {
+        
+          usermsg = "Oh no! Config file entry for " + fileName + " doesn't have enough data";
+        
+        }
+        
+        int[] info = new int[8];
+        
+        for(int j = 0; j < 8; j++) {//parse config line into an array of ints
+        
+          info[j] = Integer.parseInt(explode[j]);
+        
+        }
+        
+        int x = info[0];
+        int y = info[1];
+        int w = info[4];
+        int h = info[5];
+        
+        for(int row = 0; row < info[2]; row++) {
+        
+          for(int col = 0; col < info[3]; col++) {
+          
+            //prep output
+            String fileNameNoExtension = fileName.substring(0, fileName.lastIndexOf('.'));
+            int pos = (row * info[3]) + col;
+            String outputFileName = fileNameNoExtension + "_" + i + "_" + pos + ".jpg";
+            File output = new File(outputDir.toString() + "\\" + outputFileName);
+            
+            output.createNewFile();//create file if it doesn't exist
+            
+            BufferedImage crop = img.getSubimage(x, y, w, h);
+            
+            ImageIO.write(crop, "jpg", output);
+            
+            x += (w - 1) + info[6];//move to the right edge of the column and offset to reach next col left
+            
+          }
+          
+          x = info[0];
+          y += (h - 1) + info[7];//move down to the bottom of the row and offset to reach next row top
+          
+        }
+        
+      }
+      
+    } else {//missing entry
+    
+      usermsg = "Oh no! No match in config for " + fileName;
+      
+    }
+    
+  } catch (Exception e) {
+    usermsg = "Oh no! " + e;
+  }
+  
 }
 
 void view4D() {
@@ -275,8 +396,10 @@ int[][] scaleImg(int[][] img, int w, int h) {
       
       float topRowLerp = lerp(topLeft, topRight, xScale);
       float bottomRowLerp = lerp(bottomLeft, bottomRight, xScale);
+      float leftColLerp = lerp(topLeft, bottomRight, yScale);
+      float rightColLerp = lerp(topRight, bottomRight, yScale);
       
-      int val = (int)lerp(topRowLerp, bottomRowLerp, yScale);
+      int val = (int)((topRowLerp + bottomRowLerp + leftColLerp + rightColLerp) / 4.0f);
       
       ret[y][x] = val;
     
