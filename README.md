@@ -37,3 +37,20 @@ latin_english.jpg
 498 0 2 1 13 22 0 42 //i, r
 190 63 1 1 25 25 0 0 //m
 20 126 1 4 25 25 33 39 //s-v
+
+TEMPLATE:
+
+example1.jpg
+1
+0 0 0 0 0 0 0 0 //test comment
+
+example2.jpg
+3
+0 0 0 0 0 0 0 0 //test comment
+0 0 0 0 0 0 0 0 //test comment
+0 0 0 0 0 0 0 0 //test comment
+
+example3.jpg
+2
+0 0 0 0 0 0 0 0 //test comment
+0 0 0 0 0 0 0 0 //test comment
