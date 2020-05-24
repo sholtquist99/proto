@@ -1,0 +1,20 @@
+latin_accents.jpg
+2
+0 0 3 6 22 30 76 25 //capitals
+20 0 3 6 20 30 79 25 //lowercase
+
+latin_archaic.jpg
+1
+0 0 3 7 30 35 54 80 //all
+
+latin_extra.jpg
+2
+0 0 1 7 25 25 50 0 //capitals
+22 0 1 7 0 0 50 0 //lowercase
+
+latin_ligs.jpg
+4
+0 0 1 5 35 30 39 0 //capital
+35 0 1 5 30 30 47 0 //lowercase
+400 0 1 2 30 30 50 0 //top row remainder
+13 77 1 7 35 35 41 0 //bottom row
