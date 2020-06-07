@@ -106,51 +106,13 @@ void splitSourceFiles() {
 
 }
 
-void generate3D() {
-
-  key = '0';//reset input to prevent sticking
-  
-  ArrayList<int[][]> characterData = new ArrayList();
-  Path english_chars = Paths.get(sketchPath("input\\writing_systems\\Latin\\characters\\English"));
-  
-  try {
-    DirectoryStream<Path> stream = Files.newDirectoryStream(english_chars);
-    for (Path file: stream) {
-        BufferedImage img = ImageIO.read(file.toFile());
-        trimImage(img);
-        characterData.add(scaleImg(trimImage(img), scaledImgDim, scaledImgDim));
-    }
-    println("finished cropping and scaling images in this directory!");
-  } catch (Exception e) {
-    println("Oh no! " + e);
-  }
-
-}
-
-void list3D() {
-
-  
-  
-}
-
-void view3D() {
-
-  
-  
-}
-
-void generate4D() {
-
-  key = '0';//reset input to prevent sticking
-
-}
-
 //process the source folder for a given writing system
 void splitSystem(Path path) {
   
   Path source = Paths.get(path.toString() + "\\source");
   
   try {
+    
     DirectoryStream<Path> stream = Files.newDirectoryStream(source);
     for (Path file: stream) {
         if(file.toFile().isDirectory()) {//writing system contains subsets for different languages/language groups
@@ -193,8 +155,13 @@ void splitSystem(Path path) {
           
           println("\tProcessing resource " + fileName);
           
+          File config = new File(source.toString() + "\\config.txt");
+          Path outputDir = Paths.get(path.toString() + "\\characters");
+          splitFile(resource, config, outputDir);
+          
         }
     }
+    
   } catch (Exception e) {
     println("Oh no! " + e);
   }
@@ -284,6 +251,45 @@ void splitFile(File resource, File config, Path outputDir) {//handle individual 
     usermsg = "Oh no! " + e;
   }
   
+}
+
+void generate3D() {
+
+  key = '0';//reset input to prevent sticking
+  
+  ArrayList<int[][]> characterData = new ArrayList();
+  Path english_chars = Paths.get(sketchPath("input\\writing_systems\\Latin\\characters\\English"));
+  
+  try {
+    DirectoryStream<Path> stream = Files.newDirectoryStream(english_chars);
+    for (Path file: stream) {
+        BufferedImage img = ImageIO.read(file.toFile());
+        trimImage(img);
+        characterData.add(scaleImg(trimImage(img), scaledImgDim, scaledImgDim));
+    }
+    println("finished cropping and scaling images in this directory!");
+  } catch (Exception e) {
+    println("Oh no! " + e);
+  }
+
+}
+
+void list3D() {
+
+  
+  
+}
+
+void view3D() {
+
+  
+  
+}
+
+void generate4D() {
+
+  key = '0';//reset input to prevent sticking
+
 }
 
 void view4D() {
