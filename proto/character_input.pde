@@ -234,6 +234,7 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
 
 }
 
+//find the distinct values present in the array, except for background values
 HashSet<Integer> distinctNonBG(int[][] arr, int background) {
 
   HashSet<Integer> vals = new HashSet();
