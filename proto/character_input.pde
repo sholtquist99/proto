@@ -1,7 +1,9 @@
 import java.awt.Rectangle;
 
 final float pixelCutoff = 0.95f;//cutoff for pixels being considered part of a character - otherwise, consider as background
-final float distanceCutoff = 4;
+final float distanceCutoff = 5;//maxium distance between two extracted regions for joining
+final int areaCutoff = 50;//maximum area of the smaller region being added
+final int background = 0;//default value assigned to pixels in the background of an image
 
 void splitSourceFiles() {
 
@@ -53,7 +55,11 @@ void splitSystem(Path path) {
             println("\tProcessing resource " + fileName);
             
             Path outputDir = Paths.get(path.toString() + "\\characters\\" + dirName);
-            splitFileCCL(resource, config, outputDir);
+            int[][] cclResult = splitFileCCL(resource, config);
+            ArrayList<Rectangle> bounds = extractBounds(cclResult);
+            println("\t\tSuccessfully extracted " + bounds.size() + " bounding boxes from source image");
+            extractImgRegions(resource,  bounds, outputDir);
+            println("\t\tCharacter data extracted and saved to individual files!");
             
           }
           
@@ -72,7 +78,11 @@ void splitSystem(Path path) {
           
           File config = new File(source.toString() + "\\config.txt");
           Path outputDir = Paths.get(path.toString() + "\\characters");
-          splitFileCCL(resource, config, outputDir);
+          int[][] cclResult = splitFileCCL(resource, config);
+          ArrayList<Rectangle> bounds = extractBounds(cclResult);
+          println("\t\tSuccessfully extracted " + bounds.size() + " bounding boxes from source image");
+          extractImgRegions(resource,  bounds, outputDir);
+          println("\t\tCharacter data extracted and saved to individual files!");
           
         }
     }
@@ -84,7 +94,7 @@ void splitSystem(Path path) {
 }
 
 //Connected-Component Labeling, slightly adapted to fit the needs of the project
-int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle individual file splitting
+int[][] splitFileCCL(File resource, File config) {
 
   String fileName = resource.getName();
   
@@ -101,13 +111,11 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
     
     }
     
-    Rectangle[] exclusionRegions;
-    
     if(line.equals(fileName)) {//config file contains info for the resource
       
       //get exclusion region info from config file
       int numRegions = Integer.parseInt(configReader.readLine());
-      exclusionRegions = new Rectangle[numRegions];
+      Rectangle[] exclusionRegions = new Rectangle[numRegions];
       
       for(int i = 0; i < numRegions; i++) {
       
@@ -117,7 +125,7 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
         if(explode.length < 4) {
         
           usermsg = "Oh no! Config file entry for " + fileName + " doesn't have enough data";
-          return new int[1][1];//dummy return data for fail state
+          return null;//dummy return data for fail state
         
         }
         
@@ -129,18 +137,16 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
       }
       
       //modified two-pass CCR process begins
-      
       int h = imgArr.length;
       int w = imgArr[0].length;
       
-      //HashMap<Integer, DisjointSet> linked = new HashMap();
       DisjointSet linked = new DisjointSet(0);
       int[][] labels = new int[h][w];//rows x cols
       int nextLabel = 1;
       
       for(int i = 0; i < h; i++) {
         for(int j = 0; j < w; j++) {
-          labels[i][j] = 0;//initialize all labels to background - not strictly required in Java due to 0-initizliation with numeric arrays
+          labels[i][j] = background;//initialize all labels to background - not strictly required in Java due to 0-initizliation with numeric arrays
         }
       }
       
@@ -152,17 +158,17 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
           
           for(Rectangle exclusion : exclusionRegions) {//don't process points within exclusion zones
             if(exclusion.contains(j, i)) {
-              /*println("point (" + j + ", " + i + ") is within exclusion zone {" + 
-                (int)exclusion.x + ", " + (int)exclusion.y + ", " + exclusion.width + ", " + exclusion.height + "}");*/
               continue widthwise;
             }
           }
           
           if((float)imgArr[i][j] / 255.0f <= pixelCutoff) {//pixel is not background
             
-            //neighbors
-            boolean top  = i > 0 && (float)imgArr[i - 1][j] / 255.0f <= pixelCutoff;
-            boolean left = j > 0 && (float)imgArr[i][j - 1] / 255.0f <= pixelCutoff;
+            //relevant half of an 8-connected neighborhood
+            boolean top      = i > 0 && (float)imgArr[i - 1][j] / 255.0f <= pixelCutoff;
+            boolean left     = j > 0 && (float)imgArr[i][j - 1] / 255.0f <= pixelCutoff;
+            boolean topleft  = i > 0 &&  j > 0 && (float)imgArr[i - 1][j - 1] / 255.0f <= pixelCutoff;
+            boolean topright = i > 0 && j + 1 < w && (float)imgArr[i - 1][j + 1] / 255.0f <= pixelCutoff;
             
             ArrayList<Integer> neighbors = new ArrayList();
             
@@ -171,7 +177,15 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
             }
             
             if(left) {
-              neighbors.add(labels[i][j-1]);
+              neighbors.add(labels[i][j - 1]);
+            }
+            
+            if(topleft) {
+              neighbors.add(labels[i - 1][j - 1]);
+            }
+            
+            if(topright) {
+              neighbors.add(labels[i - 1][j + 1]);
             }
             
             if(neighbors.size() == 0) {//has no neighbors
@@ -206,7 +220,7 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
           
           int label = labels[i][j];
           
-          if(label != 0) {//pixel is not background
+          if(label != background) {//pixel is not background
             
             labels[i][j] = linked.find(labels[i][j]);
           
@@ -224,18 +238,18 @@ int[][] splitFileCCL(File resource, File config, Path outputDir) {//handle indiv
       
     }
     
-    configReader.close();
+    configReader.close();//free resource
     
   } catch (Exception e) {
     usermsg = "Oh no! " + e;
   }
   
-  return new int[1][1];//dummy return data for fail state
+  return null;//dummy return data for fail state
 
 }
 
 //find the distinct values present in the array, except for background values
-HashSet<Integer> distinctNonBG(int[][] arr, int background) {
+HashSet<Integer> distinctNonBG(int[][] arr) {
 
   HashSet<Integer> vals = new HashSet();
   
@@ -243,7 +257,9 @@ HashSet<Integer> distinctNonBG(int[][] arr, int background) {
   
     for(int j = 0; j < arr[0].length; j++) { 
     
-      vals.add(arr[i][j]);
+      if(arr[i][j] != background) {
+        vals.add(arr[i][j]);
+      }
     
     }
     
@@ -252,7 +268,7 @@ HashSet<Integer> distinctNonBG(int[][] arr, int background) {
   return vals;
 
 }
-
+//find all the points (x,y) in a 2D array that have a particular value
 ArrayList<PVector> findMatchingVals(int[][] arr, int target) {
 
   ArrayList<PVector> matches = new ArrayList();
@@ -261,7 +277,7 @@ ArrayList<PVector> findMatchingVals(int[][] arr, int target) {
   
     for(int j = 0; j < arr[0].length; j++) {
     
-      if(arr[i][j] == target) {
+      if(arr[i][j] == target) {//match!
       
         //swap i-j order to convert from row-col to (x, y)
         matches.add(new PVector(j, i));
@@ -275,16 +291,40 @@ ArrayList<PVector> findMatchingVals(int[][] arr, int target) {
   return matches;
 
 }
-
+//find the closest distance between two rectangles
 float closestDist(Rectangle r1, Rectangle r2) {
   
+  //check distances between edges (if in the right positions)
+  if((r1.x <= r2.x && r2.x <= r1.x + r1.width) || (r2.x <= r1.x && r1.x <= r2.x + r2.width)) {//aligned horizontally (at least partially)
+    //get the vertical distances between the horizontal lines of the rectangles
+    float line1 = Math.abs(r1.y - r2.y);//upper 1 - upper 2
+    float line2 = Math.abs((r1.y + r1.height) - r2.y);//lower 1 - upper 2
+    float line3 = Math.abs(r1.y - (r2.y + r2.height));//upper 1 - lower 2
+    float line4 = Math.abs((r1.y + r1.height) - (r2.y + r2.height));//lower 1 - lower 2
+    
+    return Math.min(Math.min(line1, line2), Math.min(line3, line4));//return shortest direct line distance
+  
+  }
+  
+  if((r1.y <= r2.y && r2.y <= r1.y + r1.height) || (r2.y <= r1.y && r1.y <= r2.y + r2.height)) {//vertical allignment
+    //get the horizontal distances between the vertical lines of the rectangles
+    float line1 = Math.abs(r1.x - r2.x);//left 1 - left 2
+    float line2 = Math.abs((r1.x + r1.width) - r2.x);//right 1 - left 2
+    float line3 = Math.abs(r1.x - (r2.x + r2.width));//left 1 - right 2
+    float line4 = Math.abs((r1.x + r1.width) - (r2.x + r2.width));//right 1 - right 2
+    
+    return Math.min(Math.min(line1, line2), Math.min(line3, line4));//return shortest direct line distance
+  
+  }
+  
+  //check distances between corners
   PVector[] r1points = new PVector[4];
   PVector[] r2points = new PVector[4];
-  
-  r1points[0] = new PVector(r1.x, r1.y);
-  r1points[1] = new PVector(r1.x + r1.width, r1.y);
-  r1points[2] = new PVector(r1.x, r1.y + r1.height);
-  r1points[3] = new PVector(r1.x + r1.width, r1.y + r1.height);
+  //get all points from both rectangles
+  r1points[0] = new PVector(r1.x, r1.y);//top left
+  r1points[1] = new PVector(r1.x + r1.width, r1.y);//top right
+  r1points[2] = new PVector(r1.x, r1.y + r1.height);//bottom left
+  r1points[3] = new PVector(r1.x + r1.width, r1.y + r1.height);//bottom right
   
   r2points[0] = new PVector(r2.x, r2.y);
   r2points[1] = new PVector(r2.x + r2.width, r2.y);
@@ -292,7 +332,7 @@ float closestDist(Rectangle r1, Rectangle r2) {
   r2points[3] = new PVector(r2.x + r2.width, r2.y + r2.height);
   
   float dist = Float.MAX_VALUE;
-  
+  //compare all corner pairs and return the shortest distance
   for(int i = 0; i < 4; i++) {
   
     for(int j = 0; j < 4; j++) {
@@ -310,20 +350,16 @@ float closestDist(Rectangle r1, Rectangle r2) {
   return dist;
   
 }
+//extract the set of minimum bounding boxes for every unique, non-background label value in a 2D array (group matching numbers)
+ArrayList<Rectangle> extractBounds(int[][] arr) {
 
-ArrayList<Rectangle> extractBounds(int[][] arr, int background) {
-
-  HashSet<Integer> regions = distinctNonBG(arr, 0);
-  ArrayList<Rectangle> boundaries = new ArrayList();
+  HashSet<Integer> regions = distinctNonBG(arr);//distinct, non-background labels
+  ArrayList<Rectangle> boundaries = new ArrayList();//result set
   
-  for(Integer region : regions) {
-    
-    if(region == background) {
-      continue;
-    }
+  for(Integer region : regions) {//iterate over set of viable foreground labels
   
-    ArrayList<PVector> matches = findMatchingVals(arr, region);
-    
+    ArrayList<PVector> matches = findMatchingVals(arr, region);//find all points with this label
+    //find the bounding box
     int minX = Integer.MAX_VALUE;
     int maxX = Integer.MIN_VALUE;
     int minY = Integer.MAX_VALUE;
@@ -351,7 +387,7 @@ ArrayList<Rectangle> extractBounds(int[][] arr, int background) {
     
     int w = (maxX - minX) + 1;
     int h = (maxY - minY) + 1;
-    
+    //add the box to the result set
     boundaries.add(new Rectangle(minX, minY, w, h));
     
   }
@@ -361,15 +397,22 @@ ArrayList<Rectangle> extractBounds(int[][] arr, int background) {
   
     Rectangle rect1 = boundaries.get(i);
     
+    outer:
     for(int j = i - 1; j >= 0; j--) {
       
       Rectangle rect2 = boundaries.get(j);
+      
+      float dist = closestDist(rect1,rect2);//closest distance between the regions
+      int area1 = rect1.width * rect1.height;
+      int area2 = rect2.width * rect2.height;
+      int minArea = Math.min(area1, area2);//area of the smallest region
     
-      if(closestDist(rect1,rect2) <= distanceCutoff) {//within tolerance - merge, baby, merge!
+      if(dist <= distanceCutoff && minArea <= areaCutoff) {//within tolerance - merge, baby, merge!
     
-        Rectangle union = (Rectangle)rect1.createUnion(rect2); //<>//
-        boundaries.set(j, union);//join regions //<>//
+        Rectangle union = (Rectangle)rect1.createUnion(rect2);
+        boundaries.set(j, union);//join regions
         boundaries.remove(i--);//clear redundancy //<>//
+        continue outer;//don't merge (or attempt to merge) one region into more than 1 other region
       
       }
     
@@ -380,8 +423,8 @@ ArrayList<Rectangle> extractBounds(int[][] arr, int background) {
   return boundaries;
   
 }
-
-void extractCharacterFiles(File resource, Path outputDir, ArrayList<Rectangle> bounds) {
+//extracts 0 or more subimages from the source image and saves them to the output directory
+void extractImgRegions(File resource, ArrayList<Rectangle> bounds, Path outputDir) {
 
   String fileName = resource.getName();
   fileName = fileName.substring(0, fileName.lastIndexOf("."));
@@ -395,14 +438,14 @@ void extractCharacterFiles(File resource, Path outputDir, ArrayList<Rectangle> b
     return;
   }
   
-  for(int i = 0; i < bounds.size(); i++) {
+  for(int i = 0; i < bounds.size(); i++) {//iterate over regions
     
     Rectangle bound = bounds.get(i);
-    BufferedImage character = sourceImg.getSubimage(bound.x, bound.y, bound.width, bound.height);
+    BufferedImage character = sourceImg.getSubimage(bound.x, bound.y, bound.width, bound.height);//extract subimage
     
     String outputFileName = fileName + "_" + i + ".jpg";
     File outputFile = new File(outputString + "\\" + outputFileName);
-    
+    //try to save file
     try {
       ImageIO.write(character, "jpg", outputFile);
     } catch (Exception e) {

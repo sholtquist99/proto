@@ -27,18 +27,18 @@ void setup() {
   
   String baseDir = writing_systems.toString();
   
-  File resource = new File(baseDir + "\\Latin\\source\\English\\latin_english.jpg");
-  File config = new File(baseDir + "\\Latin\\source\\English\\config.txt");
-  Path outputDir = Paths.get(baseDir + "\\Latin\\characters\\English");
-  
-  int[][] cclResult = splitFileCCL(resource, config, outputDir);
-  ArrayList<Rectangle> bounds = extractBounds(cclResult, 0);
+  File resource = new File(baseDir + "\\Latin\\source\\latin_accents.jpg");
+  File config = new File(baseDir + "\\Latin\\source\\config.txt");
+  Path outputDir = Paths.get(baseDir + "\\Latin\\characters");
+  int[][] cclResult = splitFileCCL(resource, config);
+  //log2Darr(cclResult);
+  ArrayList<Rectangle> bounds = extractBounds(cclResult);
   println("Successfully extracted " + bounds.size() + " bounding boxes from source image");
   
-  extractCharacterFiles(resource, outputDir,  bounds);
+  extractImgRegions(resource, bounds, outputDir);
   println("Character data extracted and saved to individual files!");
   
-} //<>//
+}
 
 void draw() {
   
@@ -253,6 +253,36 @@ void printArr2D(int[][] arr, int colWidth) {
   }
   
   println("]");
+
+}
+
+void log2Darr(int[][] arr) {
+
+  String text = "";
+  
+  for(int i = 0; i < arr.length;  i++) {
+  
+    for(int j = 0; j < arr[0].length; j++) {
+    
+      text += arr[i][j] + (j + 1 < arr[0].length ? "," : "");
+    
+    }
+    
+    text += "\n";
+  
+  }
+  
+  try {
+  
+    FileWriter fw = new FileWriter(proj_dir.toString() + "\\log.csv");
+    fw.write(text);
+    fw.close();
+  
+  } catch (IOException e) {
+  
+    println("oh no! " + e);
+    
+  }
 
 }
 
