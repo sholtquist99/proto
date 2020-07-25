@@ -136,13 +136,14 @@ int[][] splitFileCCL(File resource, File config) {
         
       }
       
-      //modified two-pass CCR process begins
+      //one-component-at-a-time CCR process begins
+      //see https://en.wikipedia.org/wiki/Connected-component_labeling
       int h = imgArr.length;
       int w = imgArr[0].length;
       
-      DisjointSet linked = new DisjointSet(0);
       int[][] labels = new int[h][w];//rows x cols
       int nextLabel = 1;
+      LinkedList<PVector> pixelQueue = new LinkedList();
       
       for(int i = 0; i < h; i++) {
         for(int j = 0; j < w; j++) {
@@ -150,7 +151,6 @@ int[][] splitFileCCL(File resource, File config) {
         }
       }
       
-      //first pass
       for(int i = 0; i < h; i++) {
         
         widthwise:
@@ -162,67 +162,75 @@ int[][] splitFileCCL(File resource, File config) {
             }
           }
           
-          if((float)imgArr[i][j] / 255.0f <= pixelCutoff) {//pixel is not background
+          int pixelVal = imgArr[i][j];
+          boolean foreground = pixelVal / 255.0f <= pixelCutoff;
+          
+          if(foreground && labels[i][j] == background) {//pixel in foreground and not yet accounted for
+          
+            pixelQueue.add(new PVector(i, j));//enqueue pixel coordinates (don't worry about the order...)
             
-            //relevant half of an 8-connected neighborhood
-            boolean top      = i > 0 && (float)imgArr[i - 1][j] / 255.0f <= pixelCutoff;
-            boolean left     = j > 0 && (float)imgArr[i][j - 1] / 255.0f <= pixelCutoff;
-            boolean topleft  = i > 0 &&  j > 0 && (float)imgArr[i - 1][j - 1] / 255.0f <= pixelCutoff;
-            boolean topright = i > 0 && j + 1 < w && (float)imgArr[i - 1][j + 1] / 255.0f <= pixelCutoff;
-            
-            ArrayList<Integer> neighbors = new ArrayList();
-            
-            if(top) {
-              neighbors.add(labels[i - 1][j]);
-            }
-            
-            if(left) {
-              neighbors.add(labels[i][j - 1]);
-            }
-            
-            if(topleft) {
-              neighbors.add(labels[i - 1][j - 1]);
-            }
-            
-            if(topright) {
-              neighbors.add(labels[i - 1][j + 1]);
-            }
-            
-            if(neighbors.size() == 0) {//has no neighbors
+            while(pixelQueue.size() > 0) {//label all connected pixels
+          
+              PVector connectedPixel = pixelQueue.remove();//dequeue //<>//
+              int row = (int)connectedPixel.x;//this is why I said not to worry about the order. Gross, but whatever
+              int col = (int)connectedPixel.y;
               
-              linked.unite(nextLabel);
-              labels[i][j] = nextLabel;
-              nextLabel++;
+              //check 8-connected neighborhood
+              //ensure that each potential neighbor is in bounds, a foreground pixel, and not already labeled
+              //I know it's pretty verbose and ugly...sorry :/
+              boolean top         = row > 0                    && (float)imgArr[row - 1][col] / 255.0f <= pixelCutoff     && labels[row - 1][col] == background;
+              boolean topright    = row > 0 && col + 1 < w     && (float)imgArr[row - 1][col + 1] / 255.0f <= pixelCutoff && labels[row - 1][col + 1] == background;
+              boolean right       = col + 1 < w                && (float)imgArr[row][col + 1] / 255.0f <= pixelCutoff     && labels[row][col + 1] == background;//this is where it breaks (a -1 got in the row/x somehow????)
+              boolean bottomright = row + 1 < h && col + 1 < w && (float)imgArr[row + 1][col + 1] / 255.0f <= pixelCutoff && labels[row + 1][col + 1] == background;
+              boolean bottom      = row + 1 < h                && (float)imgArr[row + 1][col] / 255.0f <= pixelCutoff     && labels[row + 1][col] == background;
+              boolean bottomleft  = row + 1 < h && col > 0     && (float)imgArr[row + 1][col - 1] / 255.0f <= pixelCutoff && labels[row + 1][col - 1] == background;
+              boolean left        = col > 0                    && (float)imgArr[row][col - 1] / 255.0f <= pixelCutoff     && labels[row][col - 1] == background;
+              boolean topleft     = row > 0 && col > 0         && (float)imgArr[row - 1][col - 1] / 255.0f <= pixelCutoff && labels[row - 1][col - 1] == background;
               
-            } else {//has at least one neighbor
               
-              int minL = neighbors.size() == 1 ? neighbors.get(0) : Math.min(neighbors.get(0), neighbors.get(1));
-              labels[i][j] = minL;
-              
-              for(Integer label : neighbors) {
-              
-                linked.unite(labels[i][j], label);
-              
+              if(top) {
+                labels[row - 1][col] = nextLabel;//connect that sucker!
+                pixelQueue.add(new PVector(row - 1, col));//enqueue neighbor for further processing
               }
-            
+              
+              if(topright) {
+                labels[row - 1][col + 1] = nextLabel;
+                pixelQueue.add(new PVector(row - 1, col + 1));
+              }
+              
+              if(right) {
+                labels[row][col + 1] = nextLabel;
+                pixelQueue.add(new PVector(row, col + 1));
+              }
+              
+              if(bottomright) {
+                labels[row + 1][col + 1] = nextLabel;
+                pixelQueue.add(new PVector(row + 1, col + 1));
+              }
+              
+              if(bottom) {
+                labels[row + 1][col] = nextLabel;
+                pixelQueue.add(new PVector(row - 1, col));
+              }
+              
+              if(bottomleft) {
+                labels[row + 1][col - 1] = nextLabel;
+                pixelQueue.add(new PVector(row + 1, col - 1));
+              }
+              
+              if(left) {
+                labels[row][col - 1] = nextLabel;
+                pixelQueue.add(new PVector(row, col - 1));
+              }
+              
+              if(topleft) {
+                labels[row - 1][col - 1] = nextLabel;
+                pixelQueue.add(new PVector(row - 1, col - 1));
+              }
+          
             }
-            
-          }
           
-        }
-        
-      }
-      
-      //second pass
-      for(int i = 0; i < h; i++) {
-        
-        for(int j = 0; j < w; j++) {
-          
-          int label = labels[i][j];
-          
-          if(label != background) {//pixel is not background
-            
-            labels[i][j] = linked.find(labels[i][j]);
+            nextLabel++;//increment label and move on
           
           }
           
@@ -230,7 +238,7 @@ int[][] splitFileCCL(File resource, File config) {
         
       }
       
-      return labels;//victory! return the label matrix for further processing
+      return labels;//victory! return the label matrix for further processing //<>//
     
     } else {//missing entry
     
@@ -397,7 +405,6 @@ ArrayList<Rectangle> extractBounds(int[][] arr) {
   
     Rectangle rect1 = boundaries.get(i);
     
-    outer:
     for(int j = i - 1; j >= 0; j--) {
       
       Rectangle rect2 = boundaries.get(j);
@@ -411,8 +418,7 @@ ArrayList<Rectangle> extractBounds(int[][] arr) {
     
         Rectangle union = (Rectangle)rect1.createUnion(rect2);
         boundaries.set(j, union);//join regions
-        boundaries.remove(i--);//clear redundancy //<>//
-        continue outer;//don't merge (or attempt to merge) one region into more than 1 other region
+        boundaries.remove(i--);//clear redundancy
       
       }
     

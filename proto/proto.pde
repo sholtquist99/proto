@@ -30,7 +30,7 @@ void setup() {
   File resource = new File(baseDir + "\\Latin\\source\\latin_accents.jpg");
   File config = new File(baseDir + "\\Latin\\source\\config.txt");
   Path outputDir = Paths.get(baseDir + "\\Latin\\characters");
-  int[][] cclResult = splitFileCCL(resource, config);
+  int[][] cclResult = splitFileCCL(resource, config); //<>//
   //log2Darr(cclResult);
   ArrayList<Rectangle> bounds = extractBounds(cclResult);
   println("Successfully extracted " + bounds.size() + " bounding boxes from source image");
@@ -260,7 +260,7 @@ void log2Darr(int[][] arr) {
 
   String text = "";
   
-  for(int i = 0; i < arr.length;  i++) {
+  for(int i = 0; i < arr.length;  i++) { //<>//
   
     for(int j = 0; j < arr[0].length; j++) {
     
