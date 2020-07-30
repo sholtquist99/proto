@@ -1,8 +1,6 @@
 import java.awt.Rectangle;
 
 final float pixelCutoff = 0.95f;//cutoff for pixels being considered part of a character - otherwise, consider as background
-final float distanceCutoff = 5;//maxium distance between two extracted regions for joining
-final int areaCutoff = 50;//maximum area of the smaller region being added
 final int background = 0;//default value assigned to pixels in the background of an image
 
 void splitSourceFiles() {
@@ -54,12 +52,39 @@ void splitSystem(Path path) {
             
             println("\tProcessing resource " + fileName);
             
-            Path outputDir = Paths.get(path.toString() + "\\characters\\" + dirName);
+            float distanceCutoff = 0;
+            int areaCutoff = 0;
+            
+            try {
+              
+              BufferedReader configReader = new BufferedReader(new FileReader(config));
+              String line = "";
+              
+              while(configReader.ready() && !line.equals(fileName)) {//read until we reach the file at hand
+                line = configReader.readLine(); 
+              }
+              
+              if(line.equals(fileName)) {//config file contains info for the resource
+                
+                String[] explode = configReader.readLine().split(" ");
+                distanceCutoff = Float.parseFloat(explode[1]);
+                areaCutoff = Integer.parseInt(explode[2]);
+                
+              }
+              
+            } catch (Exception e) {
+            
+              usermsg = "Distance and/or area cutoffs not found - using defaults (0): " + e;
+              
+            }
+            
             int[][] cclResult = splitFileCCL(resource, config);
-            ArrayList<Rectangle> bounds = extractBounds(cclResult);
-            println("\t\tSuccessfully extracted " + bounds.size() + " bounding boxes from source image");
+            ArrayList<Rectangle> bounds = extractBounds(cclResult, distanceCutoff, areaCutoff);
+            println("Successfully extracted " + bounds.size() + " bounding boxes from source image");
+            
+            Path outputDir = Paths.get(path.toString() + "\\characters\\" + dirName);
             extractImgRegions(resource,  bounds, outputDir);
-            println("\t\tCharacter data extracted and saved to individual files!");
+            println("Character data extracted and saved to individual files!");
             
           }
           
@@ -77,14 +102,43 @@ void splitSystem(Path path) {
           println("\tProcessing resource " + fileName);
           
           File config = new File(source.toString() + "\\config.txt");
-          Path outputDir = Paths.get(path.toString() + "\\characters");
+          
+          float distanceCutoff = 0;
+          int areaCutoff = 0;
+          
+          try {
+            
+            BufferedReader configReader = new BufferedReader(new FileReader(config));
+            String line = "";
+            
+            while(configReader.ready() && !line.equals(fileName)) {//read until we reach the file at hand
+              line = configReader.readLine(); 
+            }
+            
+            if(line.equals(fileName)) {//config file contains info for the resource
+              
+              String[] explode = configReader.readLine().split(" ");
+              distanceCutoff = Float.parseFloat(explode[1]);
+              areaCutoff = Integer.parseInt(explode[2]);
+              
+            }
+            
+          } catch (Exception e) {
+          
+            usermsg = "Distance and/or area cutoffs not found - defaulting to 0 for missing value(s): " + e;
+            
+          }
+          
           int[][] cclResult = splitFileCCL(resource, config);
-          ArrayList<Rectangle> bounds = extractBounds(cclResult);
-          println("\t\tSuccessfully extracted " + bounds.size() + " bounding boxes from source image");
+          ArrayList<Rectangle> bounds = extractBounds(cclResult, distanceCutoff, areaCutoff);
+          println("Successfully extracted " + bounds.size() + " bounding boxes from source image");
+          
+          Path outputDir = Paths.get(path.toString() + "\\characters");
           extractImgRegions(resource,  bounds, outputDir);
-          println("\t\tCharacter data extracted and saved to individual files!");
+          println("Character data extracted and saved to individual files!");
           
         }
+        
     }
     
   } catch (Exception e) {
@@ -114,7 +168,7 @@ int[][] splitFileCCL(File resource, File config) {
     if(line.equals(fileName)) {//config file contains info for the resource
       
       //get exclusion region info from config file
-      int numRegions = Integer.parseInt(configReader.readLine());
+      int numRegions = Integer.parseInt(configReader.readLine().split(" ")[0]);//parse the first number in the line
       Rectangle[] exclusionRegions = new Rectangle[numRegions];
       
       for(int i = 0; i < numRegions; i++) {
@@ -171,7 +225,7 @@ int[][] splitFileCCL(File resource, File config) {
             
             while(pixelQueue.size() > 0) {//label all connected pixels
           
-              PVector connectedPixel = pixelQueue.remove();//dequeue //<>//
+              PVector connectedPixel = pixelQueue.remove();//dequeue
               int row = (int)connectedPixel.x;//this is why I said not to worry about the order. Gross, but whatever
               int col = (int)connectedPixel.y;
               
@@ -180,7 +234,7 @@ int[][] splitFileCCL(File resource, File config) {
               //I know it's pretty verbose and ugly...sorry :/
               boolean top         = row > 0                    && (float)imgArr[row - 1][col] / 255.0f <= pixelCutoff     && labels[row - 1][col] == background;
               boolean topright    = row > 0 && col + 1 < w     && (float)imgArr[row - 1][col + 1] / 255.0f <= pixelCutoff && labels[row - 1][col + 1] == background;
-              boolean right       = col + 1 < w                && (float)imgArr[row][col + 1] / 255.0f <= pixelCutoff     && labels[row][col + 1] == background;//this is where it breaks (a -1 got in the row/x somehow????)
+              boolean right       = col + 1 < w                && (float)imgArr[row][col + 1] / 255.0f <= pixelCutoff     && labels[row][col + 1] == background;
               boolean bottomright = row + 1 < h && col + 1 < w && (float)imgArr[row + 1][col + 1] / 255.0f <= pixelCutoff && labels[row + 1][col + 1] == background;
               boolean bottom      = row + 1 < h                && (float)imgArr[row + 1][col] / 255.0f <= pixelCutoff     && labels[row + 1][col] == background;
               boolean bottomleft  = row + 1 < h && col > 0     && (float)imgArr[row + 1][col - 1] / 255.0f <= pixelCutoff && labels[row + 1][col - 1] == background;
@@ -210,7 +264,7 @@ int[][] splitFileCCL(File resource, File config) {
               
               if(bottom) {
                 labels[row + 1][col] = nextLabel;
-                pixelQueue.add(new PVector(row - 1, col));
+                pixelQueue.add(new PVector(row + 1, col));
               }
               
               if(bottomleft) {
@@ -359,7 +413,7 @@ float closestDist(Rectangle r1, Rectangle r2) {
   
 }
 //extract the set of minimum bounding boxes for every unique, non-background label value in a 2D array (group matching numbers)
-ArrayList<Rectangle> extractBounds(int[][] arr) {
+ArrayList<Rectangle> extractBounds(int[][] arr, float distanceCutoff, int areaCutoff) {
 
   HashSet<Integer> regions = distinctNonBG(arr);//distinct, non-background labels
   ArrayList<Rectangle> boundaries = new ArrayList();//result set
@@ -400,7 +454,7 @@ ArrayList<Rectangle> extractBounds(int[][] arr) {
     
   }
   
-  //combine regions that are within the cutoff distance - some characters (such as i and j) contain multiple subregions
+  //combine regions that are within tolerance - some characters (such as i and j) contain multiple subregions
   for(int i = boundaries.size() - 1; i >= 0; i--) {
   
     Rectangle rect1 = boundaries.get(i);
@@ -414,11 +468,11 @@ ArrayList<Rectangle> extractBounds(int[][] arr) {
       int area2 = rect2.width * rect2.height;
       int minArea = Math.min(area1, area2);//area of the smallest region
     
-      if(dist <= distanceCutoff && minArea <= areaCutoff) {//within tolerance - merge, baby, merge!
+      if(dist <= distanceCutoff && minArea <= areaCutoff) {//within tolerance - merge, baby, merge! //<>//
     
         Rectangle union = (Rectangle)rect1.createUnion(rect2);
         boundaries.set(j, union);//join regions
-        boundaries.remove(i--);//clear redundancy
+        boundaries.remove(i--);//clear redundancy //<>//
       
       }
     
@@ -429,7 +483,7 @@ ArrayList<Rectangle> extractBounds(int[][] arr) {
   return boundaries;
   
 }
-//extracts 0 or more subimages from the source image and saves them to the output directory
+//extracts non-background subimages from the source image and saves them to the output directory
 void extractImgRegions(File resource, ArrayList<Rectangle> bounds, Path outputDir) {
 
   String fileName = resource.getName();
