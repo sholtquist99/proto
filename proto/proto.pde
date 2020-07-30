@@ -30,9 +30,39 @@ void setup() {
   File resource = new File(baseDir + "\\Latin\\source\\latin_accents.jpg");
   File config = new File(baseDir + "\\Latin\\source\\config.txt");
   Path outputDir = Paths.get(baseDir + "\\Latin\\characters");
+  
+  String fileName = "latin_accents.jpg";
+  
   int[][] cclResult = splitFileCCL(resource, config); //<>//
   //log2Darr(cclResult);
-  ArrayList<Rectangle> bounds = extractBounds(cclResult);
+  
+  float distanceCutoff = 0;
+  int areaCutoff = 0;
+  
+  try {
+    
+    BufferedReader configReader = new BufferedReader(new FileReader(config));
+    String line = "";
+    
+    while(configReader.ready() && !line.equals(fileName)) {//read until we reach the file at hand
+      line = configReader.readLine(); 
+    }
+    
+    if(line.equals(fileName)) {//config file contains info for the resource
+      
+      String[] explode = configReader.readLine().split(" ");
+      distanceCutoff = Float.parseFloat(explode[1]);
+      areaCutoff = Integer.parseInt(explode[2]);
+      
+    }
+    
+  } catch (Exception e) {
+  
+    usermsg = "Distance and/or area cutoffs not found - using defaults (0): " + e;
+    
+  }
+  
+  ArrayList<Rectangle> bounds = extractBounds(cclResult, distanceCutoff, areaCutoff);
   println("Successfully extracted " + bounds.size() + " bounding boxes from source image");
   
   extractImgRegions(resource, bounds, outputDir);
@@ -143,7 +173,9 @@ void view4D() {
   
   
 }
-
+//convert BufferedImage to 2D int array for easier processing
+//code thanks to user Motasim on SO
+//https://stackoverflow.com/questions/6524196/java-get-pixel-array-from-image
 int[][] imgToArr(BufferedImage img) {
 
   final byte[] pixels = ((DataBufferByte) img.getRaster().getDataBuffer()).getData();
@@ -161,7 +193,7 @@ int[][] imgToArr(BufferedImage img) {
   
     for(int j = 0; j < imgWidth; j++) {
     
-      int pixelidx = (((i * imgWidth) + j) * (hasAlpha ? 4 : 3)) + (hasAlpha ? 1 : 0);
+      int pixelidx = (((i * imgWidth) + j) * size) + (size - 3);
       
       int argb = 0;
       argb += ((int) pixels[pixelidx] & 0xff); // blue
@@ -180,12 +212,20 @@ int[][] imgToArr(BufferedImage img) {
 }
 
 //modified bilinear interpolation
-int[][] scaleImg(int[][] img, int w, int h) {
+int[][] scaleImg(int[][] img, int minDim) {
 
-  int[][] ret = new int[h][w];//rows by columns
-  
+  //dimensions of original image array
   int originalHeight = img.length;
   int originalWidth = img[0].length;
+  
+  int shortestSide = Math.min(originalHeight, originalWidth);
+  
+  //leave dimensions alone if >= minimum, scale to fit otherwise
+  float scaleFactor = shortestSide >= minDim ? 1.0 : (float)minDim / shortestSide;
+  int h = (int)Math.round(originalHeight * scaleFactor);
+  int w = (int)Math.round(originalWidth * scaleFactor);
+  
+  int[][] ret = new int[h][w];//rows by columns
   
   for(int y = 0; y < h; y++) {
   
@@ -205,14 +245,12 @@ int[][] scaleImg(int[][] img, int w, int h) {
       int bottomLeft = img[y2][x1];
       int bottomRight = img[y2][x2];
       
-      float topRowLerp = lerp(topLeft, topRight, xScale);
+      float topRowLerp = lerp(topLeft, topRight, xScale);//lerp along all 4 edges of bounding rectangle
       float bottomRowLerp = lerp(bottomLeft, bottomRight, xScale);
       float leftColLerp = lerp(topLeft, bottomRight, yScale);
       float rightColLerp = lerp(topRight, bottomRight, yScale);
       
-      int val = (int)((topRowLerp + bottomRowLerp + leftColLerp + rightColLerp) / 4.0f);
-      
-      ret[y][x] = val;
+      ret[y][x] = (int)((topRowLerp + bottomRowLerp + leftColLerp + rightColLerp) / 4.0f);//average 4 lerp values
     
     }
   
@@ -221,7 +259,8 @@ int[][] scaleImg(int[][] img, int w, int h) {
   return ret;
   
 }
-
+//console log a 2D array with minimum column widths
+//NOTE: I didn't bother checking for the widest column present in the source array, so ugliness is possible. May or may not fix later
 void printArr2D(int[][] arr, int colWidth) {
 
   println("[");
@@ -255,7 +294,7 @@ void printArr2D(int[][] arr, int colWidth) {
   println("]");
 
 }
-
+//dump 2D array into a "log.csv" file in the main project folder
 void log2Darr(int[][] arr) {
 
   String text = "";
